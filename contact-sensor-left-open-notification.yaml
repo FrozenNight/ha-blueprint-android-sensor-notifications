@@ -143,6 +143,15 @@ blueprint:
             - "green"
             - "blue"
             - "purple"
+    notification_android_channel:
+      name: Notification Channel (Android Only, optional)
+      description: >
+        Android channel name/ID to use. Leave blank to use the default
+        channel ("General"). The app will create the channel on first use.
+      default: ""
+      selector:
+        text:
+
     notification_persistent:
       name: 📌 Persistent Notification (Android Only)
       description: The notification cannot be closed manually. See [documentation](https://companion.home-assistant.io/docs/notifications/notifications-basic/#persistent-notification) for details.
@@ -194,6 +203,7 @@ variables:
   notification_interruption_level: !input notification_interruption_level
   custom_action_issue_state: !input custom_action_issue_state
   custom_action_from_issue_state: !input custom_action_from_issue_state
+  notification_android_channel: !input notification_android_channel
 
 trigger:
   - platform: state
@@ -212,6 +222,7 @@ action:
       number_of_notify_services: "{{ notify_services_list | count }}"
       notification_tag: "{{ trigger_entity[-20:] }}-{{ custom_friendly_name[-20:] }}-{{ notify_services_string[-20:] }}"
       initially_triggered_at: "{{ now() }}"
+      has_notification_channel: "{{ (notification_android_channel | default('') | trim) != '' }}"
   - choose:
       - conditions:
           - condition: trigger
@@ -232,20 +243,39 @@ action:
                     - repeat:
                         count: "{{ number_of_notify_services }}"
                         sequence:
-                          - service: "{{ notify_services_list[repeat.index-1] }}"
-                            data:
-                              message: !input notification_message
-                              title: !input notification_title
-                              data:
-                                clickAction: !input notification_click_url
-                                url: !input notification_click_url
-                                tag: "{{ notification_tag }}"
-                                color: !input notification_color
-                                notification_icon: "mdi:{{ notification_icon_warning }}"
-                                push:
-                                  interruption-level: !input notification_interruption_level
-                                persistent: !input notification_persistent
-                                sticky: !input notification_persistent
+                          - choose:
+                            - conditions: "{{ has_notification_channel }}"
+                              sequence:
+                                - service: "{{ notify_services_list[repeat.index-1] }}"
+                                  data:
+                                    message: !input notification_message
+                                    title: !input notification_title
+                                    data:
+                                      clickAction: !input notification_click_url
+                                      url: !input notification_click_url
+                                      tag: "{{ notification_tag }}"
+                                      color: !input notification_color
+                                      notification_icon: "mdi:{{ notification_icon_warning }}"
+                                      channel: "{{ notification_android_channel }}"
+                                      push:
+                                        interruption-level: !input notification_interruption_level
+                                        persistent: !input notification_persistent
+                                        sticky: !input notification_persistent
+                            default:
+                              - service: "{{ notify_services_list[repeat.index-1] }}"
+                                data:
+                                  message: !input notification_message
+                                  title: !input notification_title
+                                  data:
+                                    clickAction: !input notification_click_url
+                                    url: !input notification_click_url
+                                    tag: "{{ notification_tag }}"
+                                    color: !input notification_color
+                                    notification_icon: "mdi:{{ notification_icon_warning }}"
+                                    push:
+                                      interruption-level: !input notification_interruption_level
+                                      persistent: !input notification_persistent
+                                      sticky: !input notification_persistent
                     - choose: []
                       default: !input custom_action_issue_state
                 - if:
